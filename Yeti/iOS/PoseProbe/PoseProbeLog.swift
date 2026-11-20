@@ -57,6 +57,9 @@ struct PoseSample: Equatable, Sendable {
         case orientation
         case geometry
         case scene
+        /// The sensor view attaching to / leaving a window — a fold tearing
+        /// the sheet down shows up here.
+        case sensor
         case lock
         case mark
         case poll
@@ -166,7 +169,7 @@ struct PoseProbeLog: Equatable, Sendable {
 
     func shouldLog(_ trigger: PoseSample.Trigger, _ snapshot: PoseSnapshot) -> Bool {
         switch trigger {
-        case .start, .scene, .lock, .mark:
+        case .start, .scene, .sensor, .lock, .mark:
             return true
         case .hingeSwiftUI, .hingeUIKit:
             guard let last = lastHinge[trigger] else { return true }

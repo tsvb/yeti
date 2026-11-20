@@ -90,6 +90,7 @@ final class PoseProbeLogTests: XCTestCase {
         XCTAssertTrue(log.offer(.mark, s, note: "Tent", at: t0))
         XCTAssertTrue(log.offer(.mark, s, note: "Tent", at: t0))
         XCTAssertTrue(log.offer(.scene, s, note: "inactive", at: t0))
+        XCTAssertTrue(log.offer(.sensor, s, note: "sensor detached", at: t0))
     }
 
     func testTheCapShedsNonMarksFirst() {

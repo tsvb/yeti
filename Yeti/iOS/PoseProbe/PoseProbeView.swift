@@ -1,5 +1,6 @@
 #if DEBUG
 import CoreMotion
+import os
 import SwiftUI
 import UIKit
 
@@ -72,7 +73,7 @@ final class PoseProbeStore {
             }
         }
         readGeometry(.poll)
-        log.offer(.start, current, note: motion.isDeviceMotionAvailable ? nil : "no device motion",
+        record(.start, current, note: motion.isDeviceMotionAvailable ? nil : "no device motion",
                   at: .now)
     }
 
@@ -95,7 +96,20 @@ final class PoseProbeStore {
 
     func clear() {
         log.clear()
-        log.offer(.start, current, note: "cleared", at: .now)
+        record(.start, current, note: "cleared", at: .now)
+    }
+
+    @ObservationIgnored private let logger = Logger(subsystem: "com.timvbs.yeti", category: "PoseProbe")
+
+    /// Every log write goes through here, so each row also lands in the unified
+    /// log (`log show --predicate 'category == "PoseProbe"'`) — the sheet only
+    /// shows the latest rows.
+    private func record(_ trigger: PoseSample.Trigger, _ snapshot: PoseSnapshot,
+                        note: String? = nil, at time: Date) {
+        guard log.offer(trigger, snapshot, note: note, at: time),
+              let row = log.samples.last else { return }
+        let line = PoseProbeLog.line(row, origin: log.samples.first?.time ?? time)
+        logger.log("\(line, privacy: .public)")
     }
 
     // MARK: - Sources
@@ -103,15 +117,15 @@ final class PoseProbeStore {
     func hinge(_ source: PoseSample.Trigger, status: String?, degrees: Double?) {
         current.hingeStatus = status ?? "nil"
         current.hingeDegrees = degrees
-        log.offer(source, current, note: status == nil ? "no hinge (left hierarchy?)" : nil,
+        record(source, current, note: status == nil ? "no hinge (left hierarchy?)" : nil,
                   at: .now)
     }
 
     private func gravity(x: Double, y: Double, z: Double) {
         current.gravity = .init(x: x, y: y, z: z)
         current.deviceOrientation = Self.name(UIDevice.current.orientation)
-        log.offer(.gravity, current, at: .now)
-        log.offer(.orientation, current, at: .now)
+        record(.gravity, current, at: .now)
+        record(.orientation, current, at: .now)
     }
 
     func scene(_ phase: ScenePhase) {
@@ -122,7 +136,7 @@ final class PoseProbeStore {
         @unknown default: "unknown"
         }
         readGeometry(.poll)
-        log.offer(.scene, current, note: current.scenePhase, at: .now)
+        record(.scene, current, note: current.scenePhase, at: .now)
     }
 
     /// Reads everything the window and scene can say. `.geometry` from the
@@ -138,7 +152,7 @@ final class PoseProbeStore {
         case .unknown: "unknown"
         @unknown default: "?"
         }
-        if let window = sensorView?.window {
+        if let window = activeWindow {
             current.window = .init(width: window.bounds.width, height: window.bounds.height)
             let s = window.safeAreaInsets
             current.safeArea = .init(top: s.top, leading: s.left, bottom: s.bottom, trailing: s.right)
@@ -154,7 +168,24 @@ final class PoseProbeStore {
             }
         }
         guard active else { return }
-        log.offer(trigger, current, at: .now)
+        record(trigger, current, at: .now)
+    }
+
+    /// The sensor view's window, or — when a fold or the dismissal has taken
+    /// the sheet away — the foreground scene's key window, so readings and the
+    /// relock never silently stop.
+    private var activeWindow: UIWindow? {
+        if let window = sensorView?.window { return window }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        return scene?.keyWindow ?? scene?.windows.first
+    }
+
+    func sensorMoved(attached: Bool) {
+        readGeometry(.poll)
+        guard active else { return }
+        record(.sensor, current, note: attached ? "sensor attached" : "sensor detached",
+                  at: .now)
     }
 
     // MARK: - Marks
@@ -170,7 +201,11 @@ final class PoseProbeStore {
             try? await Task.sleep(for: .seconds(Self.armSeconds))
             guard !Task.isCancelled, let self else { return }
             self.readGeometry(.poll)
-            self.log.offer(.mark, self.current, note: label, at: .now)
+            // A suspended app (the Duo closed, say) wakes late and would stamp
+            // the pose it reopened in — say so rather than write a clean mark.
+            let late = Date.now.timeIntervalSince(self.armed?.fires ?? .now)
+            let note = late > 1 ? "\(label) (LATE +\(Int(late.rounded()))s)" : label
+            self.record(.mark, self.current, note: note, at: .now)
             self.armed = nil
             UINotificationFeedbackGenerator().notificationOccurred(.success)
         }
@@ -190,16 +225,16 @@ final class PoseProbeStore {
     func setRotationUnlocked(_ unlocked: Bool) {
         OrientationGate.poseProbeUnlocked = unlocked
         current.rotationUnlocked = unlocked
-        let scene = sensorView?.window?.windowScene
+        let window = activeWindow
         if !unlocked {
-            scene?.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+            window?.windowScene?.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
         }
-        var vc = sensorView?.window?.rootViewController
+        var vc = window?.rootViewController
         while let controller = vc {
             controller.setNeedsUpdateOfSupportedInterfaceOrientations()
             vc = controller.presentedViewController
         }
-        log.offer(.lock, current, note: unlocked ? "rotation unlocked" : "portrait lock", at: .now)
+        record(.lock, current, note: unlocked ? "rotation unlocked" : "portrait lock", at: .now)
     }
 
     // MARK: - Report
@@ -309,7 +344,7 @@ private struct PoseProbeSensors: UIViewRepresentable {
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
-            store?.readGeometry(.geometry)
+            store?.sensorMoved(attached: window != nil)
         }
 
         override func layoutSubviews() {
@@ -402,9 +437,10 @@ struct PoseProbeView: View {
                 .foregroundStyle(.secondary)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
                 ForEach(Self.poses, id: \.self) { pose in
-                    Button(pose) { store.arm(pose) }
-                        .buttonStyle(.bordered)
-                        .frame(maxWidth: .infinity)
+                    Button { store.arm(pose) } label: {
+                        Text(pose).frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                 }
             }
             if let armed = store.armed {
@@ -435,7 +471,9 @@ struct PoseProbeView: View {
                         copied = false
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                // .bordered, not .borderedProminent: the root tint is snow, so
+                // a prominent fill would be white under a white label.
+                .buttonStyle(.bordered)
                 Button("Clear", role: .destructive) { store.clear() }
                     .buttonStyle(.bordered)
             }
