@@ -255,6 +255,9 @@ targets:
         # player (track / follow / dismiss thresholds and the per-drag latch).
         # Compiled in rather than @testable-imported so the test bundle stays
         # host-free — and so macOS-hosted tests can cover iOS-only gesture logic.
+      - path: Yeti/iOS/PoseProbe/PoseProbeLog.swift
+        # The DEBUG Pose Probe's pure half (de-noising, raw hinge counters,
+        # report text). DEBUG-only like the sheet it serves; tests build Debug.
       - path: Yeti/iOS/NowPlayingColumns.swift
         # Pure Foundation layout policy for the iOS full-screen player (alone /
         # arrangement / explicit columns, and the queue column's width).

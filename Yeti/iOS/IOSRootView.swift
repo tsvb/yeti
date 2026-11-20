@@ -27,6 +27,10 @@ struct IOSRootView: View {
     /// -UITestShowNetworkProbe so it can be screenshotted without a tap.
     @State private var probeShown =
         ProcessInfo.processInfo.arguments.contains("-UITestShowNetworkProbe")
+    /// The DEBUG Pose Probe sheet (account menu; the Duo's hinge, gravity and
+    /// geometry per pose). `-UITestShowPoseProbe` presents it at launch.
+    @State private var poseProbeShown =
+        ProcessInfo.processInfo.arguments.contains("-UITestShowPoseProbe")
     #endif
     /// Guards the listening-stats reset. There is no event log behind those
     /// tallies, so the wipe is unrecoverable — it does not happen on one tap.
@@ -180,6 +184,16 @@ struct IOSRootView: View {
         }
         #if DEBUG
         .sheet(isPresented: $probeShown) { NetworkProbeView() }
+        // onDismiss, not the view's onDisappear: a fold can tear the sheet
+        // down and rebuild it, and that mustn't end the run.
+        .sheet(isPresented: $poseProbeShown, onDismiss: { PoseProbeStore.shared.stop() }) {
+            if #available(iOS 27.1, *) {
+                PoseProbeView()
+            } else {
+                Text("The pose probe needs iOS 27.1 (the hinge APIs).")
+                    .padding()
+            }
+        }
         #endif
         .background(KeyCommandsHost(app: app, ui: ui))
         // A text field in the tab you just left keeps first responder across a
@@ -254,6 +268,7 @@ struct IOSRootView: View {
             #if DEBUG
             Divider()
             Button("Network Probe (Debug)") { probeShown = true }
+            Button("Pose Probe (Debug)") { poseProbeShown = true }
             #endif
             Divider()
             Button("Reset Listening Stats…", role: .destructive) {

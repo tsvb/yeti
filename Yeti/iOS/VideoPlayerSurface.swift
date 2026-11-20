@@ -102,10 +102,18 @@ struct VideoPlayerSurface: UIViewControllerRepresentable {
 /// rotate. UIKit consults this on every orientation decision.
 final class OrientationGate: NSObject, UIApplicationDelegate {
     @MainActor static var videoFullscreen = false
+    #if DEBUG
+    /// The DEBUG Pose Probe's "Unlock rotation" toggle: every orientation,
+    /// upside-down included, so the probe can see what each Duo pose yields.
+    @MainActor static var poseProbeUnlocked = false
+    #endif
 
     func application(_ application: UIApplication,
                      supportedInterfaceOrientationsFor window: UIWindow?)
         -> UIInterfaceOrientationMask {
-        OrientationGate.videoFullscreen ? .allButUpsideDown : .portrait
+        #if DEBUG
+        if OrientationGate.poseProbeUnlocked { return .all }
+        #endif
+        return OrientationGate.videoFullscreen ? .allButUpsideDown : .portrait
     }
 }
