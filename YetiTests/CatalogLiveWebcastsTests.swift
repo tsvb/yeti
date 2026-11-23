@@ -10,7 +10,8 @@ final class CatalogLiveWebcastsTests: XCTestCase {
     func testExclusiveVideoWebcast() {
         let v = parse(#"""
         {"skuId":921842,"eventType":"exclusive","contentType":"video","has4KOption":false,
-         "startDate":"2026-07-21T23:30:00+00:00",
+         "startDate":"2026-07-21T23:30:00+00:00","endDate":"2026-07-22T03:59:00+00:00",
+         "saleWindowEndDate":"2026-08-04T15:40:00+00:00",
          "release":{"id":"46811","title":"7-21-2026 Agganis Arena Boston, MA",
                     "performanceDate":"2026-07-21T00:00:00",
                     "artist":{"name":"Billy Strings"},
@@ -22,6 +23,10 @@ final class CatalogLiveWebcastsTests: XCTestCase {
         XCTAssertEqual(v.skuId, 921842)
         XCTAssertEqual(v.artistName, "Billy Strings")
         XCTAssertEqual(v.imagePath, "https://cdn/x.jpg")
+        XCTAssertEqual(v.eventStart, Catalog.parseTimestamp("2026-07-21T23:30:00+00:00"))
+        XCTAssertEqual(v.eventEnd?.timeIntervalSince(v.eventStart!), 4 * 3_600 + 29 * 60)
+        XCTAssertEqual(v.replayEnd, Catalog.parseTimestamp("2026-08-04T15:40:00Z"))
+        XCTAssertNotNil(v.replayEnd)
     }
 
     func testFreeVideoCarriesNormalizedYouTubeURLAndNotes() {

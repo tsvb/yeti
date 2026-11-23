@@ -93,6 +93,8 @@ struct VideoSummary: Identifiable, Hashable {
     let imagePath: String?
     let isLive: Bool            // LIVE HD VIDEO vs VIDEO ON DEMAND
     let eventStart: Date?       // upcoming/live webcasts only
+    // `isLive` is the product FORMAT (every /livestreams item is true), not
+    // "on air now" — the schedule partition reads the dates below instead.
     let has4K: Bool
 
     // --- webcast surfacing (defaulted so the VOD path is untouched) ---
@@ -101,16 +103,20 @@ struct VideoSummary: Identifiable, Hashable {
     let externalURL: URL?       // free-video: nugs's public YouTube watch link
     let skuId: Int?             // feed skuId; lets a webcast resolve without a detail round-trip
     let benefitNotes: String?   // freeVideo.notes HTML (benefit/donation framing)
+    let eventEnd: Date?         // feed endDate: when the broadcast goes off air
+    let replayEnd: Date?        // feed saleWindowEndDate: read as when the replay window closes (inferred)
 
     init(id: String, title: String, artistName: String?, performanceDate: String?,
          imagePath: String?, isLive: Bool, eventStart: Date?, has4K: Bool,
          access: WebcastAccess = .exclusive, isAudio: Bool = false,
-         externalURL: URL? = nil, skuId: Int? = nil, benefitNotes: String? = nil) {
+         externalURL: URL? = nil, skuId: Int? = nil, benefitNotes: String? = nil,
+         eventEnd: Date? = nil, replayEnd: Date? = nil) {
         self.id = id; self.title = title; self.artistName = artistName
         self.performanceDate = performanceDate; self.imagePath = imagePath
         self.isLive = isLive; self.eventStart = eventStart; self.has4K = has4K
         self.access = access; self.isAudio = isAudio; self.externalURL = externalURL
         self.skuId = skuId; self.benefitNotes = benefitNotes
+        self.eventEnd = eventEnd; self.replayEnd = replayEnd
     }
 
     var imageURL: URL? { imagePath.flatMap { NugsConstants.imageURL(path: $0) } }
@@ -382,7 +388,9 @@ enum Catalog {
                 isAudio: isAudio,
                 externalURL: Catalog.watchURLFromEmbed(free.str("showUrl", "ShowUrl", "showURL")),
                 skuId: item.int("skuId", "skuID", "SkuID"),
-                benefitNotes: free.str("notes", "Notes"))
+                benefitNotes: free.str("notes", "Notes"),
+                eventEnd: Catalog.parseTimestamp(item.str("endDate", "EndDate", "eventEndDateStr")),
+                replayEnd: Catalog.parseTimestamp(item.str("saleWindowEndDate", "SaleWindowEndDate")))
         }
     }
 
