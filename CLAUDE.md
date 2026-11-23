@@ -27,8 +27,12 @@ or release notes for design changes, but keep his own data safe.
 - Install on Tim's devices to verify before landing anything visual — he judges on hardware.
 
 ## Environment & build
-- Work in the git **worktree** you were started in; don't `cd` to the main checkout (`/Users/tim/yeti`).
-  `git -C /Users/tim/yeti pull --ff-only` updates it when Tim asks.
+- Work in the git **worktree** you were started in; don't `cd` to the main checkout, which is
+  `/Users/tim/applenugs` (the folder kept its old name through the rename; there is no `/Users/tim/yeti`).
+  It usually sits on a feature branch, so when Tim asks to update `main`, fast-forward the branch in place
+  with `git -C /Users/tim/applenugs fetch origin main:main` (refused only if `main` is checked out
+  somewhere — then `pull --ff-only` there). A session started IN the main checkout branches with
+  `git switch -c <branch> origin/main` and switches back to the branch it found when done.
 - `xcodegen generate` after any `project.yml` edit (`Yeti.xcodeproj/` is gitignored). Regenerate before
   building. `YETI_TEAM_ID=<team> xcodegen generate` for device builds (team ID in memory, not the repo).
 - **Toolchain:** Xcode **27.1+** is required — the iOS app compiles iOS 27.1 SDK symbols (`ArrangementView`)
@@ -222,12 +226,14 @@ where `generate_appcast` lives after `rm -rf build`). Push the version bump BEFO
 EVERY upload (Mac + iOS share it). Never external TestFlight: Beta App Review would cite 5.2.2. The
 v1.5 release is backed up at `~/AppleNugs-1.5-build6-backup.zip`.
 
-## State — as of 2026-11-19
+## State — as of 2026-11-23
 - `main` carries the whole Yeti design (PR #8), the Duo two-column Home + pill show line (#9), the restored
   queue's cover art (#10), crate tiles (#11), artist photos on the crate (#12), the Artists list (#13), the
   Mac (#14), the artist page (#15), Favorites (#16), Home's favorites strip as photo tiles (#18), artist
   photos in search (#19) and on the nice list, plus show covers on Downloads rows (#20), the full rename to
-  Yeti (#21), and the internal TestFlight upload path with the 1.6 (7) bump.
+  Yeti (#21), the internal TestFlight upload path with the 1.6 (7) bump, the Videos rails split by date
+  (#23: Live & Upcoming opens on today; ended replays past their sale window hidden), and iOS video full
+  screen + one page per push (#24: only the SELECTED tab's stack binds `navPath`).
 - **In flight:** the `docs-refresh` branch (a README for the Yeti design) waits on Mac + Duo screenshots.
 - **Next on Tim's list:** the Duo nightstand/tent work (Tim chose all three: a propped-open player with
   clock + night dimming, a tent-pose landscape player that auto-opens, a StandBy Now Playing widget — start
