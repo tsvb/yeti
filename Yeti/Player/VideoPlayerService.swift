@@ -87,6 +87,9 @@ final class VideoPlayerService {
 
     /// Last position written to disk, to throttle recording to ~5 s.
     private var lastRecordedPosition: Double = 0
+    /// What the Now Playing card was last told; `tick()` re-pushes only when
+    /// the card would be wrong (`NowPlayingDrift`), not every half second.
+    @ObservationIgnored private var lastNowPlaying: NowPlayingSnapshot?
 
     /// A start seek deferred until the item is `.readyToPlay` — a VOD resume
     /// position, or the live-edge sentinel. Seeking right after
@@ -489,7 +492,15 @@ final class VideoPlayerService {
         if abs(currentTime - lastRecordedPosition) >= 5 {
             recordProgress(force: false)
         }
-        pushNowPlayingInfo()
+        // The system extrapolates elapsed time from the rate, so the card
+        // needs a push only on a change — including ones AVKit's own controls
+        // make behind our back (pause, scrub), which show up here as a rate
+        // flip or position drift.
+        if NowPlayingDrift.needsPush(last: lastNowPlaying, elapsed: currentTime,
+                                     duration: duration, rate: isPlaying ? 1 : 0,
+                                     isLive: isLive, now: Date()) {
+            pushNowPlayingInfo()
+        }
     }
 
     /// Persist resume position. Never for livestreams. Past ~95 % we treat the
@@ -544,6 +555,7 @@ final class VideoPlayerService {
         // Audio's pushNowPlayingInfo (via resume/pause in stop()) restores its
         // own info; clear ours so a brief gap shows nothing rather than stale.
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        lastNowPlaying = nil
     }
 
     private func remoteToggle(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
@@ -579,5 +591,8 @@ final class VideoPlayerService {
         }
         center.nowPlayingInfo = info
         center.playbackState = isPlaying ? .playing : .paused
+        lastNowPlaying = NowPlayingSnapshot(
+            elapsed: currentTime, duration: duration, rate: isPlaying ? 1 : 0,
+            isLive: isLive, pushedAt: Date())
     }
 }

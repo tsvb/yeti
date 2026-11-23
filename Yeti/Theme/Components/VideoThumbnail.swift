@@ -19,6 +19,10 @@ struct VideoThumbnail<PosterAccessory: View>: View {
     /// above the title block (e.g. a Continue Watching progress bar). Kept in
     /// flow so it never depends on the variable height of the text block.
     @ViewBuilder var posterAccessory: () -> PosterAccessory
+    /// Stamped when the parent builds the card, so every parent re-render
+    /// (VideosView re-splits its rails on appear) re-asks "on air now?"
+    /// instead of SwiftUI keeping a stale sticker for an unchanged `video`.
+    private let builtAt = Date()
 
     init(video: VideoSummary, width: CGFloat = 220,
          @ViewBuilder posterAccessory: @escaping () -> PosterAccessory) {
@@ -87,10 +91,14 @@ struct VideoThumbnail<PosterAccessory: View>: View {
 
     /// `.vt .badges`: offers on the left, facts on the right, 8pt in, 5pt
     /// apart (the inset also clears the sticker's tilt and lift).
+    ///
+    /// "Live" means on air NOW, from the feed's start/end — not `isLive`,
+    /// which is the product format and true for every webcast (it put the
+    /// sticker on next month's shows and last night's replays alike).
     private var badges: some View {
         VStack {
             HStack(alignment: .top, spacing: 5) {
-                if video.isLive { LabelSticker("Live") }
+                if video.isOnAir(at: builtAt) { LabelSticker("Live") }
                 if video.access == .free { LabelSticker("Free") }
                 if video.access == .ppv { PlainTag("PPV") }
                 Spacer(minLength: 0)

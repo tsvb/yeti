@@ -211,6 +211,9 @@ targets:
         # Which stream-resolver tier is asked, in what order, and when to stop
         # (tier 7 first, the rest one at a time). Pure Foundation, so the
         # "one request per track, never parallel" walk is covered host-free.
+      - path: Yeti/Core/NowPlayingDrift.swift
+        # When the video Now Playing card needs a re-push (rate flip, duration,
+        # position drift) instead of every player tick.
       - path: Yeti/Core/PoliteNetworking.swift
         # Pure request-pacing policies: the API token bucket, playback retry
         # backoff, the artist-catalog TTL cache and page cap. Clocks injected.

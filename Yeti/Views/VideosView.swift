@@ -10,8 +10,12 @@ struct VideosView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.theme) private var theme
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var recent: [VideoSummary] = []
+    /// The raw livestream feed, kept so the rails can be re-split against a
+    /// fresh "now" without another request (see `splitWebcasts`).
+    @State private var webcastFeed: [VideoSummary] = []
     @State private var webcasts: [VideoSummary] = []
     @State private var recentExclusives: [VideoSummary] = []
     @State private var offset = 0
@@ -50,6 +54,13 @@ struct VideosView: View {
         .navigationTitle("Videos")
         .compactNavigationTitle()
         .task { await load() }
+        // The split is time-dependent: a phone left on this tab (or coming
+        // back to it days later) would otherwise keep past shows leading Live
+        // & Upcoming. Re-split on every return; it costs no network.
+        .onAppear { splitWebcasts() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { splitWebcasts() }
+        }
     }
 
     // --- section title (shared idiom) --------------------------------------
@@ -243,15 +254,21 @@ struct VideosView: View {
                 upcomingFrom: now.addingTimeInterval(-14 * 86_400), itemTypes: "")
             let (recentResult, webcastResult) = try await (recentFetch, webcastFetch)
             recent = recentResult
-            let split = partitionWebcasts(webcastResult, now: now)
-            webcasts = split.upcoming
-            recentExclusives = split.recent
+            webcastFeed = webcastResult
+            splitWebcasts(now: now)
             offset = recentResult.count
             reachedEnd = recentResult.count < pageSize
             error = nil
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    /// Live & Upcoming vs Just streamed, against `now`.
+    private func splitWebcasts(now: Date = Date()) {
+        let split = partitionWebcasts(webcastFeed, now: now)
+        webcasts = split.upcoming
+        recentExclusives = split.recent
     }
 
     private func loadMoreIfNeeded(_ video: VideoSummary) {
