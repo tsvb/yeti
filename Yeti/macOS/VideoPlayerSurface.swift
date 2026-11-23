@@ -48,8 +48,7 @@ struct VideoPlayerSurface: NSViewRepresentable {
     /// Reports AVKit's full-screen transitions to the service, which defers the
     /// end-of-playback arbiter hand-back while full screen — otherwise a video
     /// that finishes there resumes the audio queue behind a window the viewer
-    /// can't see past. iOS needs no equivalent: `AVPlayerViewController` leaves
-    /// full screen on its own via `exitsFullScreenWhenPlaybackEnds`.
+    /// can't see past. The iOS surface reports the same transitions.
     ///
     /// @preconcurrency: the delegate protocol predates actor annotations; AVKit
     /// delivers these callbacks on the main thread, and the runtime check

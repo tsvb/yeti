@@ -296,9 +296,9 @@ final class VideoPlayerService {
     // --- full screen --------------------------------------------------------
 
     /// True while the player view is inside AVKit's full-screen presentation.
-    /// Reported by the macOS VideoPlayerSurface's delegate; iOS never sets it
-    /// (AVPlayerViewController exits full screen on its own at end of playback,
-    /// via `exitsFullScreenWhenPlaybackEnds`).
+    /// Reported by both platforms' VideoPlayerSurface delegates. On iOS the
+    /// video page reads it so the full-screen cover (which fires the page's
+    /// onDisappear) doesn't stop playback.
     private(set) var isFullScreen = false
 
     /// Set when a video finishes while full screen, so the arbiter hand-back is

@@ -120,29 +120,29 @@ struct IOSRootView: View {
     private var mainLayout: some View {
         @Bindable var ui = ui
         // One tab per Mac sidebar section. All tabs share the single
-        // UIState.navPath (only the visible tab's stack is live, and UIState
-        // resets the path whenever the section changes, so a background
-        // tab can never hold stale path entries).
+        // UIState.navPath, but only the SELECTED tab's stack is bound to it
+        // (see `tabStack`); UIState resets the path whenever the section
+        // changes, so a background tab never holds stale path entries.
         return TabView(selection: $ui.sidebarSelection) {
             Tab("Home", systemImage: "house",
                 value: UIState.SidebarItem?.some(.home)) {
-                tabStack { HomeView() }
+                tabStack(.home) { HomeView() }
             }
             Tab("Artists", systemImage: "music.mic",
                 value: UIState.SidebarItem?.some(.artists)) {
-                tabStack { ArtistListView() }
+                tabStack(.artists) { ArtistListView() }
             }
             Tab("Search", systemImage: "magnifyingglass",
                 value: UIState.SidebarItem?.some(.search)) {
-                tabStack { SearchView() }
+                tabStack(.search) { SearchView() }
             }
             Tab("Library", systemImage: "star",
                 value: UIState.SidebarItem?.some(.favorites)) {
-                tabStack { LibraryView() }
+                tabStack(.favorites) { LibraryView() }
             }
             Tab("Videos", systemImage: "play.rectangle",
                 value: UIState.SidebarItem?.some(.videos)) {
-                tabStack { VideosView() }
+                tabStack(.videos) { VideosView() }
             }
         }
         // The accessory belongs to the TabView, so it rides above every screen
@@ -201,16 +201,24 @@ struct IOSRootView: View {
     /// work exactly as in the Mac shell's detail column), and the account menu.
     @ViewBuilder
     private func tabStack<Content: View>(
+        _ tab: UIState.SidebarItem,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
-        @Bindable var ui = ui
+        // TabView keeps every tab it has shown alive. Bound straight to the
+        // shared navPath, each of those stacks pushed EVERY route: one artist
+        // page per visited tab, all loading at once, and two video pages on one
+        // AVPlayer. So only the selected tab's stack sees the path; the hidden
+        // ones get an empty path, and their writes are dropped.
+        let path = Binding<NavigationPath>(
+            get: { [ui] in ui.sidebarSelection == tab ? ui.navPath : NavigationPath() },
+            set: { [ui] in if ui.sidebarSelection == tab { ui.navPath = $0 } })
         // The toast overlay is attached to the NavigationStack itself, not
         // to `content()` (the stack's root view): the root is covered the
         // moment a destination is pushed, and its overlay along with it, so
         // a toast fired from a pushed screen — AlbumDetailView's "Playing
         // next" / "Added to queue" — would silently vanish. One level out,
         // the overlay stays visible across every push in this stack.
-        NavigationStack(path: $ui.navPath) {
+        NavigationStack(path: path) {
             content()
                 .navigationDestination(for: Route.self) { route in
                     switch route {

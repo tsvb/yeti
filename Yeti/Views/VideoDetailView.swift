@@ -68,7 +68,11 @@ struct VideoDetailView: View {
             }
         }
         .task(id: videoId) { await load() }
-        .onDisappear { app.video.stop() }
+        .onDisappear {
+            // iOS full screen covers this page, which fires onDisappear; the
+            // video is still the thing being watched, so only a real leave stops it.
+            if !app.video.isFullScreen { app.video.stop() }
+        }
     }
 
     // --- player -----------------------------------------------------------------
@@ -83,7 +87,12 @@ struct VideoDetailView: View {
                 .frame(maxWidth: .infinity)
                 .background(Color.black)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+                #if os(macOS)
+                // iOS draws no badge here: AVPlayerViewController puts its
+                // full-screen and PiP buttons in this corner (the sticker sat on
+                // them), and it marks a live stream in its own controls.
                 .overlay(alignment: .topLeading) { liveBadge }
+                #endif
                 .overlay {
                     if let loadError = app.video.loadError {
                         VideoErrorMessage(title: "Can't play this video",
@@ -351,6 +360,10 @@ struct VideoDetailView: View {
     // --- load -------------------------------------------------------------------
 
     private func load() async {
+        // Coming back from iOS full screen re-runs this task (the cover made the
+        // page disappear), but the video never stopped: nothing to reload, and
+        // a failed refetch would lay an error over a playing video.
+        if let detail, app.video.current?.id == detail.id { return }
         do {
             detail = try await app.client.videoDetail(containerId: videoId)
         } catch {
